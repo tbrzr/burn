@@ -1,0 +1,19 @@
+[Unit]
+Description=burn (zero-knowledge burn-after-reading notes)
+After=network.target
+
+[Service]
+User=burn
+WorkingDirectory=/opt/burn
+Environment=BURN_DATA_DIR=/var/lib/burn
+Environment=BURN_PORT=8350
+# Behind a reverse proxy that sets X-Real-IP:
+# Environment=BURN_TRUST_PROXY=1
+# Environment=BURN_BASE_URL=https://burn.example.com
+# Optional: Stripe and Turnstile keys
+# EnvironmentFile=/etc/burn/burn.env
+ExecStart=/usr/bin/python3 -m gunicorn -w 1 --threads 8 -b 127.0.0.1:8350 burn:app
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

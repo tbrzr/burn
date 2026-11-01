@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Burn: send a secret that self-destructs</title>
+<meta name="description" content="Share a password or secret message with a link that can only be opened once, then burns. Text only, encrypted in your browser. The server never sees the key.">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27%3E%3Cpath fill=%27%23e0532f%27 d=%27M12 2s5 4.5 5 9a5 5 0 0 1-10 0c0-1.6.7-3 1.5-4.2C8.8 8.3 9 9.5 10 10c0-2.2 1-5.5 2-8z%27/%3E%3C/svg%3E">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<meta name="theme-color" content="#e0532f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Burn">
+
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--ink:#15212b;--mid:#4a5a66;--soft:#8a98a3;--line:#e4e9ed;--panel:#fff;--accent:#0e7c86;--accent2:#0b656d;--burn:#e0532f;--bg:#eef3f5}
+body{font-family:'Inter',system-ui,sans-serif;color:var(--ink);background:radial-gradient(1200px 600px at 50% -10%,#dff0f1,transparent),var(--bg);min-height:100vh;-webkit-font-smoothing:antialiased;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+.wrap{max-width:620px;margin:0 auto;padding:26px 18px 60px}
+.hb-zoom{position:fixed;right:14px;bottom:calc(14px + env(safe-area-inset-bottom));z-index:280;display:inline-flex;background:var(--panel);border:1px solid var(--line);border-radius:99px;padding:5px;box-shadow:0 6px 20px rgba(16,24,40,.12);gap:3px}
+.hb-zoom-btn{background:transparent;border:none;color:var(--ink);font-size:20px;font-weight:600;width:44px;height:44px;border-radius:99px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .12s,color .12s}
+.hb-zoom-btn:hover{background:#fbeae4;color:var(--burn)}
+.hb-zoom-btn:active{transform:scale(0.94)}
+.hb-zoom-reset{font-size:14px;letter-spacing:.06em}
+.brand{display:flex;align-items:center;gap:9px;justify-content:center;margin-bottom:6px}
+.brand svg{color:var(--burn)}
+.brand h1{margin:0;font-family:'DM Mono',monospace;font-size:18px;font-weight:500;letter-spacing:.12em;color:var(--accent)}
+.brand h1 span{color:var(--soft)}
+.tag{text-align:center;color:var(--mid);font-size:14px;margin-bottom:22px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:20px;box-shadow:0 1px 2px rgba(16,24,40,.04),0 10px 30px -16px rgba(16,24,40,.2)}
+textarea,input[type=password],select{width:100%;border:1px solid var(--line);border-radius:11px;padding:13px 14px;font-family:inherit;font-size:15px;color:var(--ink);background:#fbfcfd;outline:none;transition:.15s}
+textarea:focus,input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(14,124,134,.12)}
+textarea{min-height:130px;resize:vertical}
+.row{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+.row>*{flex:1;min-width:130px}
+label.fld{display:block;font-size:12px;font-weight:600;color:var(--soft);text-transform:uppercase;letter-spacing:.05em;margin:0 0 5px 2px}
+.btn{border:none;border-radius:12px;padding:14px 18px;font-family:inherit;font-weight:600;font-size:15px;cursor:pointer;transition:transform .1s,box-shadow .15s;width:100%}
+.btn-primary{background:linear-gradient(160deg,var(--accent),var(--accent2));color:#fff;box-shadow:0 6px 18px -8px rgba(14,124,134,.6)}
+.btn-primary:active{transform:translateY(2px)}
+.btn-ghost{background:#fff;border:1px solid var(--line);color:var(--mid)}
+.btn-burn{background:linear-gradient(160deg,#ff7a4d,var(--burn));color:#fff;box-shadow:0 6px 18px -8px rgba(224,83,47,.6)}
+.muted{font-size:12.5px;color:var(--soft);line-height:1.6}
+.pro{margin-top:16px;border-top:1px dashed var(--line);padding-top:16px}
+.pro-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
+.pro-head b{font-size:13px;letter-spacing:.04em;text-transform:uppercase;color:var(--accent)}
+.credits{font-size:12px;color:var(--mid);background:#eaf6f7;border-radius:20px;padding:3px 10px;font-weight:600}
+.pro-grid{display:none;margin-top:12px}
+.pro-grid.on{display:block}
+.check{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--mid);margin-top:10px;cursor:pointer}
+.check input{width:18px;height:18px;accent-color:var(--accent)}
+.result{display:none}
+.linkbox{display:flex;gap:8px;margin:14px 0 6px}
+.linkbox input{flex:1;font-family:ui-monospace,monospace;font-size:13px;border:1px solid var(--line);border-radius:10px;padding:11px 12px;background:#fbfcfd}
+.copy{flex:0 0 auto;width:auto;padding:11px 16px}
+.warn{background:#fff4ed;border:1px solid #ffd9c6;color:#a8431f;border-radius:11px;padding:11px 13px;font-size:13px;line-height:1.5;margin-top:10px}
+.ok{background:#eafaf0;border:1px solid #bfe9cf;color:#1d6b3c}
+.howto{margin-top:26px}
+.howto h3{font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--soft);margin-bottom:10px;text-align:center}
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.step{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;text-align:center}
+.step svg{color:var(--accent);margin-bottom:6px}
+.step b{display:block;font-size:13px;margin-bottom:3px}
+.step span{font-size:11.5px;color:var(--soft);line-height:1.4}
+.foot{text-align:center;margin-top:30px;font-size:12px;color:var(--soft)}
+.foot a{color:var(--accent);text-decoration:none}
+.reveal-pad{text-align:center;padding:10px 0}
+.reveal-pad svg{color:var(--burn);margin-bottom:8px}
+.reveal-pad h2{font-size:20px;margin-bottom:6px}
+.secret-out{white-space:pre-wrap;word-break:break-word;background:#0e1a22;color:#e9f3f5;border-radius:12px;padding:16px;font-family:ui-monospace,monospace;font-size:14px;line-height:1.6;margin:14px 0;max-height:50vh;overflow:auto}
+.spin{display:inline-block;width:18px;height:18px;border:3px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:sp .7s linear infinite;vertical-align:-4px}
+@keyframes sp{to{transform:rotate(360deg)}}
+.hidden{display:none}
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:11px 18px;border-radius:12px;font-size:14px;opacity:0;transition:.25s;pointer-events:none;z-index:50;max-width:90vw;text-align:center}
+.toast.on{opacity:1}
+@keyframes proGlow{0%,100%{box-shadow:0 0 0 0 rgba(14,124,134,0)}50%{box-shadow:0 0 0 6px rgba(14,124,134,.28)}}
+.pro.highlight{animation:proGlow 1s ease-in-out 2;border-radius:10px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand">
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2s5 4.5 5 9a5 5 0 0 1-10 0c0-1.6.7-3 1.5-4.2C8.8 8.3 9 9.5 10 10c0-2.2 1-5.5 2-8z"/></svg>
+    <h1>burn</h1>
+  </div>
+  <p class="tag">Send a password or secret message with a link that opens <b>once</b>, then burns.</p>
+
+  <!-- ============ CREATE ============ -->
+  <div id="createView">
+    <div class="card" id="composeCard">
+      <label class="fld" for="msg">Your secret</label>
+      <textarea id="msg" placeholder="Type a password, message, key, anything..."></textarea>
+
+      <div class="pro">
+        <div class="pro-head">
+          <b>Options</b>
+          <span class="credits" id="creditPill">Free</span>
+        </div>
+        <div class="row">
+          <div>
+            <label class="fld">Expires after</label>
+            <select id="expiry"><option value="1">1 hour</option><option value="24" selected>1 day</option><option value="168" disabled data-pro="1">7 days (Pro)</option></select>
+          </div>
+          <div>
+            <label class="fld">Can be opened</label>
+            <select id="views"><option value="1" selected>Once</option><option value="3" disabled data-pro="1">3 times (Pro)</option><option value="5" disabled data-pro="1">5 times (Pro)</option></select>
+          </div>
+        </div>
+        <label class="check"><input type="checkbox" id="pwToggle" disabled data-pro="1"> Require a password to open <span class="muted" style="margin-left:auto">Pro</span></label>
+        <input type="password" id="pwField" placeholder="Set a password" class="hidden" style="margin-top:8px">
+        <div id="proBuy" class="hidden" style="margin-top:14px"></div>
+      </div>
+
+      <label class="check" style="margin-top:16px">
+        <input type="checkbox" id="tosCheck">
+        <span>I won't use this for illegal content, harassment, or sharing data I don't have the right to share &mdash; <a href="/terms.html" target="_blank" rel="noopener" onclick="event.stopPropagation()">Terms</a> &amp; <a href="/privacy.html" target="_blank" rel="noopener" onclick="event.stopPropagation()">Privacy</a></span>
+      </label>
+
+      <div id="cfWrap" style="display:none;justify-content:center;margin-top:16px">
+        <div id="cfBox"></div>
+      </div>
+      <div style="margin-top:14px">
+        <button class="btn btn-burn" id="createBtn" onclick="doCreate()">Create burn link</button>
+      </div>
+      <p class="muted" style="margin-top:12px;text-align:center">Encrypted in your browser. The key lives in the link, never on our server.</p>
+      <p class="muted" style="margin-top:6px;text-align:center;font-size:11.5px">Text only. Abuse is reported and blocked.</p>
+    </div>
+
+    <div class="card result" id="resultCard" style="margin-top:0">
+      <div class="warn ok"><b>Link ready.</b> Share it once. It self-destructs after it is opened.</div>
+      <div class="linkbox"><input id="outLink" readonly><button class="btn btn-primary copy" onclick="copyLink()">Copy</button></div>
+      <p class="muted" id="outMeta"></p>
+      <button class="btn btn-ghost" style="margin-top:12px" onclick="resetCreate()">Create another</button>
+    </div>
+
+    <div class="howto">
+      <h3>How it works</h3>
+      <div class="steps">
+        <div class="step"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M9 12h6M12 9v6"/></svg><b>Write</b><span>Type your password or secret</span></div>
+        <div class="step"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><b>Encrypt</b><span>Locked in your browser, key in the link</span></div>
+        <div class="step"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2s5 4.5 5 9a5 5 0 0 1-10 0c0-1.6.7-3 1.5-4.2C8.8 8.3 9 9.5 10 10c0-2.2 1-5.5 2-8z"/></svg><b>Burn</b><span>Opens once, then it is gone</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ READ ============ -->
+  <div id="readView" class="hidden">
+    <div class="card">
+      <div id="readBody"></div>
+    </div>
+  </div>
+
+  <p class="foot">Zero-knowledge, encrypted in your browser, text-only &middot; <a href="/privacy.html">Privacy</a> &middot; <a href="/terms.html">Terms</a> &middot; <a href="https://github.com/tbrzr/burn" target="_blank" rel="noopener">Source</a></p>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+var API='/api';
+var cfToken='';
+window.onCfToken=function(t){cfToken=t;};
+window.onCfExpire=function(){cfToken='';};
+function cfReset(){cfToken='';try{if(window.turnstile)turnstile.reset();}catch(e){}}
+function $(id){return document.getElementById(id);}
+function toast(m,ms){var t=$('toast');t.textContent=m;t.classList.add('on');clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('on'),ms||1900);}
+function nudgeProBuy(){var pro=document.querySelector('.pro');if(!pro)return;pro.scrollIntoView({behavior:'smooth',block:'center'});pro.classList.add('highlight');setTimeout(()=>pro.classList.remove('highlight'),2000);}
+
+/* ---- base64 helpers ---- */
+function b2a(buf){var b=new Uint8Array(buf),s='';for(var i=0;i<b.length;i++)s+=String.fromCharCode(b[i]);return btoa(s);}
+function a2b(s){var bin=atob(s),u=new Uint8Array(bin.length);for(var i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);return u;}
+function url64(s){return s.replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');}
+function unurl64(s){s=s.replace(/-/g,'+').replace(/_/g,'/');while(s.length%4)s+='=';return s;}
+
+/* ---- crypto ---- */
+async function derivePw(pw,salt,iter){var base=await crypto.subtle.importKey('raw',new TextEncoder().encode(pw),'PBKDF2',false,['deriveKey']);
+  return crypto.subtle.deriveKey({name:'PBKDF2',salt:salt,iterations:iter||600000,hash:'SHA-256'},base,{name:'AES-GCM',length:256},false,['encrypt','decrypt']);}
+async function encrypt(bytes,pw){
+  var iv=crypto.getRandomValues(new Uint8Array(12));
+  if(pw){var salt=crypto.getRandomValues(new Uint8Array(16));var key=await derivePw(pw,salt,600000);
+    var ct=new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM',iv:iv},key,bytes));
+    var out=new Uint8Array(1+16+12+ct.length);out[0]=81;out.set(salt,1);out.set(iv,17);out.set(ct,29);return {payload:b2a(out),keyUrl:null};}
+  var key=await crypto.subtle.generateKey({name:'AES-GCM',length:256},true,['encrypt','decrypt']);
+  var ct=new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM',iv:iv},key,bytes));
+  var out=new Uint8Array(1+12+ct.length);out[0]=82;out.set(iv,1);out.set(ct,13);
+  var raw=await crypto.subtle.exportKey('raw',key);return {payload:b2a(out),keyUrl:url64(b2a(raw))};}
+async function decrypt(payloadB64,keyUrl,pw){
+  var d=a2b(payloadB64);
+  if(d[0]===80||d[0]===81){var salt=d.slice(1,17),iv=d.slice(17,29),ct=d.slice(29);var key=await derivePw(pw,salt,d[0]===80?200000:600000);
+    return new Uint8Array(await crypto.subtle.decrypt({name:'AES-GCM',iv:iv},key,ct));}
+  var iv=d.slice(1,13),ct=d.slice(13);var raw=a2b(unurl64(keyUrl));
+  var key=await crypto.subtle.importKey('raw',raw,'AES-GCM',false,['decrypt']);
+  return new Uint8Array(await crypto.subtle.decrypt({name:'AES-GCM',iv:iv},key,ct));}
+
+/* ---- credits / pro ---- */
+var CFG={payments:false,pack_credits:20,pack_price:300};
+function token(){var t=localStorage.getItem('burn_token');if(!t){t=url64(b2a(crypto.getRandomValues(new Uint8Array(18))));localStorage.setItem('burn_token',t);}return t;}
+var credits=0;
+async function loadCfg(){try{CFG=await (await fetch(API+'/config')).json();}catch(e){}
+  if(CFG&&CFG.turnstile_sitekey){
+    var w=$('cfWrap');if(w)w.style.display='flex';
+    var sc=document.createElement('script');sc.src='https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';sc.async=true;
+    sc.onload=function(){try{turnstile.render('#cfBox',{sitekey:CFG.turnstile_sitekey,callback:window.onCfToken,'expired-callback':window.onCfExpire,'error-callback':window.onCfExpire});}catch(e){}};
+    document.head.appendChild(sc);
+  }}
+async function refreshCredits(){try{var d=await (await fetch(API+'/credits/'+token())).json();credits=d.credits||0;}catch(e){credits=0;}paintPro();}
+function isPro(){return credits>0;}
+function paintPro(){
+  $('creditPill').textContent=isPro()?(credits+' Pro credits'):'Free';
+  document.querySelectorAll('[data-pro]').forEach(el=>{el.disabled=!isPro();});
+  var buy=$('proBuy');
+  if(isPro()){buy.classList.add('hidden');}
+  else{buy.classList.remove('hidden');
+    if(CFG.payments){buy.innerHTML='<button class="btn btn-primary" onclick="buyCredits()">Unlock Pro — '+CFG.pack_credits+' notes for $'+(CFG.pack_price/100).toFixed(2)+'</button><p class="muted" style="margin-top:8px;text-align:center">Password protection, 7-day expiry, multi-open links.</p>';}
+    else{buy.innerHTML='<p class="muted" style="text-align:center">Pro (password protection, longer expiry, multi-open) coming soon.</p>';}
+  }
+}
+async function buyCredits(){try{var r=await (await fetch(API+'/checkout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:token()})})).json();
+  if(r.url)location.href=r.url;else toast(r.error==='rate'?'Too many tries, wait a minute':'Payment not available');}catch(e){toast('Payment error');}}
+async function handleReturn(){
+  var q=new URLSearchParams(location.search);
+  if(q.get('paid')){try{var r=await (await fetch(API+'/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({session_id:q.get('paid'),token:q.get('token')||token()})})).json();
+    if(r.credits!=null){credits=r.credits;toast('Pro unlocked! '+credits+' credits');}}catch(e){}
+    history.replaceState({},'',location.pathname);}
+}
+
+/* ---- toggles ---- */
+$('pwToggle').addEventListener('change',e=>$('pwField').classList.toggle('hidden',!e.target.checked));
+
+/* ---- create ---- */
+async function doCreate(){
+  var btn=$('createBtn');var pro=isPro();
+  var pw=(pro&&$('pwToggle').checked)?$('pwField').value:'';
+  if(pro&&$('pwToggle').checked&&!pw){toast('Enter a password');return;}
+  if(!$('msg').value.trim()){toast('Type a secret first');return;}
+  if(!$('tosCheck').checked){toast('Please agree to the Terms first');return;}
+  var payloadObj={t:'text',msg:$('msg').value};
+  btn.disabled=true;btn.innerHTML='<span class="spin"></span> Encrypting...';
+  try{
+    var plain=new TextEncoder().encode(JSON.stringify(payloadObj));
+    var enc=await encrypt(plain,pw);
+    var hours=parseInt($('expiry').value),views=parseInt($('views').value);
+    var body={ct:enc.payload,hours:hours,views:views,pw:!!pw,cf_token:cfToken,tos:true};
+    if(pro){body.pro=true;body.token=token();}
+    var r=await (await fetch(API+'/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();
+    if(r.error){cfReset();var m={too_big_free:'Too long. Trim it or upgrade to Pro.',too_big:'Too long for a note.',no_credits:'No Pro credits',daily_limit:'You\'ve used today\'s '+(r.limit||3)+' free notes. Unlock Pro below to keep going.',rate:'Slow down a moment, then try again',busy:'Server is busy, try again shortly',blocked:'This device is blocked from posting.',turnstile:'Please complete the verification, then try again',tos:'Please agree to the Terms first'}[r.error]||'Could not create';toast(m,r.error==='daily_limit'?4000:1900);if(r.error==='daily_limit')nudgeProBuy();btn.disabled=false;btn.textContent='Create burn link';return;}
+    var link=location.origin+'/#'+r.id+(enc.keyUrl?('.'+enc.keyUrl):'');
+    $('outLink').value=link;
+    $('outMeta').textContent='Opens '+(r.views>1?r.views+' times':'once')+' · expires in '+(r.hours>=24?(r.hours/24)+' day(s)':r.hours+' hour(s)')+(pw?' · password protected':'');
+    $('composeCard').classList.add('hidden');$('resultCard').style.display='block';
+    if(pro)await refreshCredits();
+  }catch(e){toast('Encryption failed');}
+  btn.disabled=false;btn.innerHTML='Create burn link';
+}
+function copyLink(){var i=$('outLink');i.select();navigator.clipboard.writeText(i.value).then(()=>toast('Copied'));}
+function resetCreate(){$('msg').value='';$('resultCard').style.display='none';$('composeCard').classList.remove('hidden');cfReset();}
+
+/* ---- read ---- */
+async function initRead(){
+  $('createView').classList.add('hidden');$('readView').classList.remove('hidden');
+  var h=location.hash.slice(1);var dot=h.indexOf('.');
+  var id=(dot>-1?h.slice(0,dot):h).replace(/[^A-Za-z0-9_\-]+$/,'');
+  var keyUrl=dot>-1?h.slice(dot+1).replace(/[^A-Za-z0-9_\-]+$/,''):null;
+  var body=$('readBody');
+  var meta;try{meta=await (await fetch(API+'/note/'+encodeURIComponent(id))).json();}catch(e){meta={gone:true};}
+  if(meta.gone){body.innerHTML=goneHtml();return;}
+  var needPw=meta.pw;
+  body.innerHTML='<div class="reveal-pad"><svg width="40" height="40" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2s5 4.5 5 9a5 5 0 0 1-10 0c0-1.6.7-3 1.5-4.2C8.8 8.3 9 9.5 10 10c0-2.2 1-5.5 2-8z"/></svg>'+
+    '<h2>A secret is waiting</h2><p class="muted">Opening it will permanently destroy it. Make sure you are ready.</p></div>'+
+    (needPw?'<input type="password" id="rpw" placeholder="Enter the password" style="margin:12px 0">':'')+
+    '<button class="btn btn-burn" id="revealBtn">Open &amp; burn</button>'+
+    '<p class="foot" style="margin-top:14px">Unwanted or malicious? <a href="#" id="reportLink">Report this link</a></p>';
+  $('reportLink').onclick=function(ev){ev.preventDefault();reportNote(id);};
+  $('revealBtn').onclick=async function(){
+    if(needPw&&!$('rpw').value){toast('Enter the password');return;}
+    if(!needPw&&!keyUrl){body.innerHTML=errHtml('This link is missing its key.');return;}
+    var btn=$('revealBtn');btn.disabled=true;btn.innerHTML='<span class="spin"></span> Opening...';
+    var res;try{res=await (await fetch(API+'/note/'+encodeURIComponent(id)+'/burn',{method:'POST'})).json();}catch(e){res={gone:true};}
+    if(res.gone||!res.ct){body.innerHTML=goneHtml();return;}
+    try{var bytes=await decrypt(res.ct,keyUrl,needPw?$('rpw').value:null);
+      var obj=JSON.parse(new TextDecoder().decode(bytes));showSecret(obj,res.views_left);
+    }catch(e){body.innerHTML=errHtml(needPw?'Wrong password, and the note is now burned.':'Could not decrypt. The link may be corrupted.');}
+  };
+}
+function showSecret(obj,left){
+  var body=$('readBody');var h='<div class="warn"><b>This secret has burned.</b> '+(left>0?(left+' open(s) left.'):'It cannot be opened again.')+' Save what you need now.</div>';
+  h+='<div class="secret-out" id="secretText">'+esc(obj.msg)+'</div><button class="btn btn-ghost" onclick="copySecret()">Copy</button>';
+  h+='<p class="foot" style="margin-top:20px">Need to send one back? <a href="/">Create a burn link</a></p>';
+  body.innerHTML=h;
+}
+function copySecret(){navigator.clipboard.writeText($('secretText').textContent).then(()=>toast('Copied'));}
+async function reportNote(id){
+  if(!confirm('Report this link as abusive? It will be destroyed right away.'))return;
+  try{await fetch(API+'/report',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:id})});}catch(e){}
+  $('readBody').innerHTML='<div class="reveal-pad"><svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg><h2>Reported</h2><p class="muted">Thank you. This link has been destroyed and the sender flagged.</p></div>';
+}
+function esc(s){return (s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
+function goneHtml(){return '<div class="reveal-pad"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M8 12h8"/></svg><h2>Nothing here</h2><p class="muted">This secret was already opened or has expired. That is how it is supposed to work.</p></div><p class="foot" style="margin-top:18px"><a href="/">Create your own burn link</a></p>';}
+function errHtml(m){return '<div class="reveal-pad"><h2>Hmm</h2><p class="muted">'+esc(m)+'</p></div><p class="foot" style="margin-top:18px"><a href="/">Start over</a></p>';}
+
+/* ---- zoom pill (Aa) ---- */
+(function(){
+  var KEY='hb-zoom-level',LEVELS=[0.85,0.95,1.0,1.1,1.25];
+  function apply(z){document.documentElement.style.setProperty('font-size',(z*100)+'%');try{localStorage.setItem(KEY,String(z));}catch(e){}}
+  function current(){try{var v=parseFloat(localStorage.getItem(KEY)||'1');return isFinite(v)&&v>0?v:1;}catch(e){return 1;}}
+  function step(d){var cur=current();var i=LEVELS.indexOf(cur);if(i===-1)i=LEVELS.indexOf(1.0);var n=Math.max(0,Math.min(LEVELS.length-1,i+d));apply(LEVELS[n]);}
+  function mount(){
+    if(document.querySelector('.hb-zoom'))return;
+    var bar=document.createElement('div');bar.className='hb-zoom';bar.setAttribute('role','toolbar');bar.setAttribute('aria-label','Page zoom');
+    bar.innerHTML='<button class="hb-zoom-btn" type="button" aria-label="Zoom out">−</button><button class="hb-zoom-btn hb-zoom-reset" type="button" aria-label="Reset zoom">Aa</button><button class="hb-zoom-btn" type="button" aria-label="Zoom in">+</button>';
+    document.body.appendChild(bar);
+    var b=bar.querySelectorAll('.hb-zoom-btn');
+    b[0].onclick=function(){step(-1);};b[1].onclick=function(){apply(1.0);};b[2].onclick=function(){step(1);};
+  }
+  apply(current());
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mount);else mount();
+})();
+
+
+/* ---- boot ---- */
+(async function(){
+  await loadCfg();
+  if(location.hash.length>1){initRead();}
+  else{await handleReturn();await refreshCredits();}
+})();
+</script>
+</body>
+</html>
