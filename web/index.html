@@ -291,7 +291,7 @@ async function reportNote(id){
   try{await fetch(API+'/report',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:id})});}catch(e){}
   $('readBody').innerHTML='<div class="reveal-pad"><svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg><h2>Reported</h2><p class="muted">Thank you. This link has been destroyed and the sender flagged.</p></div>';
 }
-function esc(s){return (s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function goneHtml(){return '<div class="reveal-pad"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M8 12h8"/></svg><h2>Nothing here</h2><p class="muted">This secret was already opened or has expired. That is how it is supposed to work.</p></div><p class="foot" style="margin-top:18px"><a href="/">Create your own burn link</a></p>';}
 function errHtml(m){return '<div class="reveal-pad"><h2>Hmm</h2><p class="muted">'+esc(m)+'</p></div><p class="foot" style="margin-top:18px"><a href="/">Start over</a></p>';}
 

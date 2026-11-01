@@ -18,6 +18,7 @@ from werkzeug.exceptions import HTTPException
 HERE = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(HERE, "web")
 app = Flask(__name__, static_folder=WEB, static_url_path="")
+app.config["MAX_CONTENT_LENGTH"] = 256 * 1024   # largest legit body is a 96 KB ciphertext in JSON
 LOCK = threading.RLock()   # serializes note/credit read-modify-write so a one-view note can only be read once
 
 @app.errorhandler(HTTPException)
@@ -49,15 +50,19 @@ FREE_DAILY_CAP = 3               # free burns per IP per UTC day before Pro is r
 def salt():
     try:
         with open(SALT_FILE) as f:
-            return f.read().strip()
+            v = f.read().strip()
+            if v: return v
     except Exception:
-        s = pysecrets.token_hex(16)
-        try:
-            with open(SALT_FILE, "w") as f: f.write(s)
-            os.chmod(SALT_FILE, 0o600)
-        except Exception:
-            pass
-        return s
+        pass
+    v = pysecrets.token_hex(16)
+    try:
+        fd = os.open(SALT_FILE, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, "w") as f: f.write(v)
+    except FileExistsError:
+        with open(SALT_FILE) as f: return f.read().strip()
+    except Exception:
+        pass
+    return v
 
 def ip_hash(ip):
     return hashlib.sha256((salt() + "|" + (ip or "")).encode()).hexdigest()[:16]
@@ -178,6 +183,20 @@ def note_count():
     try: return sum(1 for f in os.listdir(NOTES) if f.endswith(".json"))
     except Exception: return 0
 
+
+CSP = ("default-src 'self'; script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com; "
+       "style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; "
+       "frame-src https://challenges.cloudflare.com; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
+
+@app.after_request
+def security_headers(resp):
+    resp.headers["Content-Security-Policy"] = CSP
+    resp.headers["X-Content-Type-Options"] = "nosniff"
+    resp.headers["X-Frame-Options"] = "DENY"
+    resp.headers["Referrer-Policy"] = "no-referrer"   # links carry the key in #fragment and tokens in query strings
+    if request.path.startswith("/api/"):
+        resp.headers["Cache-Control"] = "no-store"
+    return resp
 
 @app.route("/")
 def index():
@@ -304,13 +323,14 @@ def report():
         try: os.remove(p)
         except Exception: pass
     if h:
-        reps = load(REPORTS_FILE, {})
-        reps[h] = reps.get(h, 0) + 1
-        save(REPORTS_FILE, reps)
-        if reps[h] >= REPORTS_TO_BLOCK:
-            bl = load(BLOCK_FILE, [])
-            if h not in bl:
-                bl.append(h); save(BLOCK_FILE, bl)
+        with LOCK:
+            reps = load(REPORTS_FILE, {})
+            reps[h] = reps.get(h, 0) + 1
+            save(REPORTS_FILE, reps)
+            if reps[h] >= REPORTS_TO_BLOCK:
+                bl = load(BLOCK_FILE, [])
+                if h not in bl:
+                    bl.append(h); save(BLOCK_FILE, bl)
     return jsonify({"ok": True})
 
 # ---------------- micro-payments (Stripe Checkout, webhook-free) ----------------

@@ -80,6 +80,22 @@ class BurnTests(unittest.TestCase):
         nid = make(self.c, views=5).get_json()["views"]
         self.assertEqual(nid, 1)
 
+    def test_security_headers(self):
+        r = self.c.get("/api/health")
+        self.assertEqual(r.headers["Referrer-Policy"], "no-referrer")
+        self.assertEqual(r.headers["X-Content-Type-Options"], "nosniff")
+        self.assertEqual(r.headers["X-Frame-Options"], "DENY")
+        self.assertEqual(r.headers["Cache-Control"], "no-store")
+        self.assertIn("frame-ancestors 'none'", r.headers["Content-Security-Policy"])
+
+    def test_oversize_body_rejected(self):
+        r = self.c.post("/api/create", data="x" * (300 * 1024), content_type="application/json")
+        self.assertEqual(r.status_code, 413)
+
+    def test_salt_file_is_private(self):
+        self.b.ip_hash("1.2.3.4")
+        self.assertEqual(oct(os.stat(self.b.SALT_FILE).st_mode & 0o777), "0o600")
+
     def test_bad_id_is_404(self):
         self.assertEqual(self.c.get("/api/note/..%2f..%2fetc").status_code, 404)
 
