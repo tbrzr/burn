@@ -47,6 +47,8 @@ if you run a public instance.
 - If a link is intercepted before the recipient opens it, the interceptor can read the note instead.
 - Rate limiting is in memory and resets on restart.
 
+See also: [Awesome DNS Privacy](https://github.com/tbrzr/awesome-dns-privacy), a curated list of private DNS tools.
+
 ## License
 
 MIT. See `LICENSE`.
